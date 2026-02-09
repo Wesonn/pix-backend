@@ -6,36 +6,40 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Coloque aqui seu Access Token do Mercado Pago
-const ACCESS_TOKEN = "COLE_AQUI_SEU_ACCESS_TOKEN";
+const PORT = process.env.PORT || 8080;
 
-// Se for usar no front-end, também coloque a Public Key
-const PUBLIC_KEY = "COLE_AQUI_SUA_PUBLIC_KEY";
-
-app.get("/pix", async (req, res) => {
-    try {
-        // Exemplo de requisição para gerar pagamento PIX
-        const response = await axios.post(
-            "https://api.mercadopago.com/v1/payments",
-            {
-                transaction_amount: 10, // valor do pagamento
-                description: "Teste PIX",
-                payment_method_id: "pix"
-            },
-            {
-                headers: {
-                    Authorization: `Bearer ${ACCESS_TOKEN}`,
-                    "Content-Type": "application/json"
-                }
-            }
-        );
-
-        res.json(response.data);
-    } catch (error) {
-        console.log(error.response?.data || error.message);
-        res.status(500).json({ error: "Erro ao gerar PIX", detalhes: error.response?.data });
-    }
+// Rota raiz só pra testar
+app.get("/", (req, res) => {
+  res.send("Servidor PIX rodando 🚀");
 });
 
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => console.log(`Servidor PIX rodando na porta ${PORT}`));
+// Rota PIX segura
+app.get("/pix", async (req, res) => {
+  try {
+    const response = await axios.post(
+      "https://api.mercadopago.com/v1/payments",
+      {
+        transaction_amount: 10, // valor do pagamento para teste
+        description: "Depósito no jogo",
+        payment_method_id: "pix",
+        payer: { email: "teste@teste.com" }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    res.json({
+      qr_code: response.data.point_of_interaction.transaction_data.qr_code,
+      qr_code_base64: response.data.point_of_interaction.transaction_data.qr_code_base64
+    });
+  } catch (error) {
+    console.log(error.response?.data || error.message);
+    res.status(500).json({ error: "Erro ao gerar PIX", detalhes: error.response?.data || error.message });
+  }
+});
+
+app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
