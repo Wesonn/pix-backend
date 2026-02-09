@@ -1,52 +1,19 @@
-const express = require("express");
-const axios = require("axios");
-const cors = require("cors");
-const crypto = require("crypto");
+async function abrirPix(){
+  const pixContainer = document.getElementById("pixContainer");
+  pixContainer.innerHTML = "Gerando PIX...";
+  try{
+    const resp = await fetch("https://pix-backend-production-b072.up.railway.app/pix");
+    const data = await resp.json();
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+    pixContainer.innerHTML = `
+      <p>Copia e Cola PIX: ${data.copia_e_cola}</p>
+      <img src="data:image/png;base64,${data.qr_code_base64}" alt="QR Code PIX"/>
+      <p>Pague pelo app do banco para receber o saldo</p>
+    `;
 
-const PORT = process.env.PORT || 8080;
-
-// Rota raiz
-app.get("/", (req, res) => {
-  res.send("Servidor PIX rodando 🚀");
-});
-
-// Rota PIX
-app.get("/pix", async (req, res) => {
-  try {
-    const idempotencyKey = crypto.randomUUID(); // chave única por requisição
-
-    const response = await axios.post(
-      "https://api.mercadopago.com/v1/payments",
-      {
-        transaction_amount: 10, // valor do teste, pode mudar depois
-        description: "Depósito no jogo",
-        payment_method_id: "pix",
-        payer: { email: "teste@teste.com" } // pode alterar pro email do jogador
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}`,
-          "Content-Type": "application/json",
-          "X-Idempotency-Key": idempotencyKey
-        }
-      }
-    );
-
-    res.json({
-      copia_e_cola: response.data.point_of_interaction.transaction_data.qr_code,
-      qr_code_base64: response.data.point_of_interaction.transaction_data.qr_code_base64
-    });
-  } catch (err) {
-    console.log(err.response?.data || err.message);
-    res.status(500).json({
-      error: "Erro ao gerar PIX",
-      detalhes: err.response?.data || err.message
-    });
+    // Atualiza saldo depois de alguns segundos
+    setTimeout(atualizarSaldoReal, 5000);
+  }catch(e){
+    pixContainer.innerHTML = "Erro ao gerar PIX";
   }
-});
-
-app.listen(PORT, () => console.log(`Servidor PIX rodando na porta ${PORT}`));
+}
