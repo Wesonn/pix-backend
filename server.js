@@ -9,18 +9,16 @@ app.use(cors());
 const PORT = process.env.PORT || 8080;
 const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
 
-// rota teste
+// saldo simples em memória (teste)
+let saldoUsuarios = {};
+
 app.get("/", (req, res) => {
   res.send("Servidor PIX online");
 });
 
-// 🔥 ROTA QUE CRIA O PIX REAL
+// 🔥 CRIAR PIX
 app.post("/criar-pix", async (req, res) => {
-  const { valor } = req.body;
-
-  if (!valor || valor <= 0) {
-    return res.status(400).json({ error: "Valor inválido" });
-  }
+  const { valor, userId } = req.body;
 
   try {
     const response = await fetch(
@@ -33,11 +31,10 @@ app.post("/criar-pix", async (req, res) => {
         },
         body: JSON.stringify({
           transaction_amount: Number(valor),
-          description: "Depósito no jogo Caixas Premiadas",
+          description: "Depósito no jogo",
           payment_method_id: "pix",
-          payer: {
-            email: "pagador@email.com"
-          }
+          payer: { email: "pagador@email.com" },
+          metadata: { userId }
         })
       }
     );
@@ -50,9 +47,42 @@ app.post("/criar-pix", async (req, res) => {
       qr_code_base64: data.point_of_interaction.transaction_data.qr_code_base64
     });
 
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: "Erro ao criar Pix" });
   }
+});
+
+// 🔔 WEBHOOK
+app.post("/webhook", async (req, res) => {
+  const paymentId = req.body?.data?.id;
+  if (!paymentId) return res.sendStatus(200);
+
+  const response = await fetch(
+    `https://api.mercadopago.com/v1/payments/${paymentId}`,
+    {
+      headers: {
+        "Authorization": `Bearer ${MP_ACCESS_TOKEN}`
+      }
+    }
+  );
+
+  const data = await response.json();
+
+  if (data.status === "approved") {
+    const userId = data.metadata.userId;
+    const valor = data.transaction_amount;
+
+    saldoUsuarios[userId] = (saldoUsuarios[userId] || 0) + valor;
+    console.log(`Saldo liberado: ${userId} +R$${valor}`);
+  }
+
+  res.sendStatus(200);
+});
+
+// CONSULTAR SALDO
+app.get("/saldo/:userId", (req, res) => {
+  const saldo = saldoUsuarios[req.params.userId] || 0;
+  res.json({ saldo });
 });
 
 app.listen(PORT, () => {
